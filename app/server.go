@@ -44,9 +44,18 @@ func main() {
 	requestStr := string(buffer[:n])
 	lines := strings.Split(requestStr, "\r\n")
 	startLine := NewStartLine(lines[0])
-	if startLine.Path == "/" {
+	switch true {
+	case strings.HasPrefix(startLine.Path, "/echo/"):
+		echoWord := strings.TrimPrefix(startLine.Path, "/echo/")
+		fmt.Fprintf(conn, "HTTP/1.1 200 OK\r\n")
+		fmt.Fprintf(conn, "Content-Type: text/plain\r\n")
+		fmt.Fprintf(conn, "Content-Length: %d\r\n", len(echoWord))
+		fmt.Fprintf(conn, "\r\n")
+		fmt.Fprintf(conn, "%s\r\n\r\n", echoWord)
+		return
+	case startLine.Path == "/":
 		fmt.Fprintf(conn, "HTTP/1.1 200 OK\r\n\r\n")
-	} else {
+	default:
 		fmt.Fprintf(conn, "HTTP/1.1 404 NOT FOUND\r\n\r\n")
 	}
 }
