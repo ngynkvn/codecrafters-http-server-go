@@ -24,18 +24,7 @@ func NewStartLine(str string) StartLine {
 	}
 }
 
-func main() {
-	l, err := net.Listen("tcp", "0.0.0.0:4221")
-	if err != nil {
-		fmt.Println("Failed to bind to port 4221")
-		os.Exit(1)
-	}
-
-	conn, err := l.Accept()
-	if err != nil {
-		fmt.Println("Error accepting connection: ", err.Error())
-		os.Exit(1)
-	}
+func handleConn(conn net.Conn) {
 	defer conn.Close()
 	buffer := make([]byte, 32768)
 	n, err := conn.Read(buffer)
@@ -85,5 +74,22 @@ func main() {
 	default:
 		fmt.Fprintf(conn, "HTTP/1.1 404 NOT FOUND\r\n\r\n")
 		return
+	}
+}
+
+func main() {
+	l, err := net.Listen("tcp", "0.0.0.0:4221")
+	if err != nil {
+		fmt.Println("Failed to bind to port 4221")
+		os.Exit(1)
+	}
+
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			fmt.Println("Error accepting connection: ", err.Error())
+			os.Exit(1)
+		}
+		go handleConn(conn)
 	}
 }
