@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"net"
+	"net/http"
 	"os"
 	"strings"
 )
@@ -44,6 +46,16 @@ func main() {
 	requestStr := string(buffer[:n])
 	lines := strings.Split(requestStr, "\r\n")
 	startLine := NewStartLine(lines[0])
+
+	headerMap := map[string]string{}
+	headerLines := lines[1:]
+	for _, line := range headerLines {
+		kv := strings.Split(line, ": ")
+		if len(kv) == 2 {
+			headerMap[kv[0]] = kv[1]
+		}
+	}
+
 	switch true {
 	case strings.HasPrefix(startLine.Path, "/echo/"):
 		echoWord := strings.TrimPrefix(startLine.Path, "/echo/")
@@ -51,11 +63,23 @@ func main() {
 		fmt.Fprintf(conn, "Content-Type: text/plain\r\n")
 		fmt.Fprintf(conn, "Content-Length: %d\r\n", len(echoWord))
 		fmt.Fprintf(conn, "\r\n")
-		fmt.Fprintf(conn, "%s\r\n\r\n", echoWord)
+		fmt.Fprintf(conn, "%s", echoWord)
 		return
+	case strings.HasPrefix(startLine.Path, "/user-agent"):
+		resp := http.Response{
+			Status:     "200 OK",
+			StatusCode: 200,
+			ProtoMajor: 1,
+			ProtoMinor: 1,
+			Body:       io.NopCloser(strings.NewReader(headerMap["User-Agent"])),
+		}
+		resp.Write(conn)
+
 	case startLine.Path == "/":
 		fmt.Fprintf(conn, "HTTP/1.1 200 OK\r\n\r\n")
+		return
 	default:
 		fmt.Fprintf(conn, "HTTP/1.1 404 NOT FOUND\r\n\r\n")
+		return
 	}
 }
