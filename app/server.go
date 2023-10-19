@@ -71,7 +71,11 @@ func main() {
 			StatusCode: 200,
 			ProtoMajor: 1,
 			ProtoMinor: 1,
-			Body:       io.NopCloser(strings.NewReader(headerMap["User-Agent"])),
+			Header: http.Header{
+				"Content-Type": {"text/plain"},
+			},
+			ContentLength: int64(len(headerMap["User-Agent"])),
+			Body:          io.NopCloser(strings.NewReader(headerMap["User-Agent"])),
 		}
 		resp.Write(conn)
 
