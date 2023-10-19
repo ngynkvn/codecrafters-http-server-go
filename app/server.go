@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"net"
@@ -24,6 +25,8 @@ func NewStartLine(str string) StartLine {
 	}
 }
 
+var directory string
+
 func handleConn(conn net.Conn) {
 	defer conn.Close()
 	buffer := make([]byte, 32768)
@@ -38,12 +41,17 @@ func handleConn(conn net.Conn) {
 
 	headerMap := map[string]string{}
 	headerLines := lines[1:]
-	for _, line := range headerLines {
+	clrfI := 0
+	for i, line := range headerLines {
 		kv := strings.Split(line, ": ")
 		if len(kv) == 2 {
 			headerMap[kv[0]] = kv[1]
+		} else if line == "" {
+			clrfI = i
+			break
 		}
 	}
+	body := lines[clrfI+2]
 
 	switch true {
 	case strings.HasPrefix(startLine.Path, "/echo/"):
@@ -53,6 +61,27 @@ func handleConn(conn net.Conn) {
 		fmt.Fprintf(conn, "Content-Length: %d\r\n", len(echoWord))
 		fmt.Fprintf(conn, "\r\n")
 		fmt.Fprintf(conn, "%s", echoWord)
+		return
+	case strings.HasPrefix(startLine.Path, "/files/") && startLine.Method == http.MethodPost:
+		filePath := strings.TrimPrefix(startLine.Path, "/files/")
+		writePath := fmt.Sprintf("%s/%s", directory, filePath)
+		file, _ := os.Create(writePath)
+		file.Write([]byte(body))
+		fmt.Fprintf(conn, "HTTP/1.1 201 CREATED\r\n\r\n")
+		return
+	case strings.HasPrefix(startLine.Path, "/files/") && startLine.Method == http.MethodGet:
+		filePath := strings.TrimPrefix(startLine.Path, "/files/")
+		writePath := fmt.Sprintf("%s/%s", directory, filePath)
+		if file, err := os.Open(writePath); os.IsNotExist(err) {
+			fmt.Fprintf(conn, "HTTP/1.1 404 NOT FOUND\r\n\r\n")
+		} else {
+			bytes, _ := io.ReadAll(file)
+			fmt.Fprintf(conn, "HTTP/1.1 200 OK\r\n")
+			fmt.Fprintf(conn, "Content-Type: application/octet-stream\r\n")
+			fmt.Fprintf(conn, "Content-Length: %d\r\n", len(bytes))
+			fmt.Fprintf(conn, "\r\n")
+			fmt.Fprintf(conn, "%s", bytes)
+		}
 		return
 	case strings.HasPrefix(startLine.Path, "/user-agent"):
 		resp := http.Response{
@@ -83,6 +112,8 @@ func main() {
 		fmt.Println("Failed to bind to port 4221")
 		os.Exit(1)
 	}
+	flag.StringVar(&directory, "directory", "", "directory")
+	flag.Parse()
 
 	for {
 		conn, err := l.Accept()
